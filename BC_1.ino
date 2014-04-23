@@ -1,10 +1,9 @@
 #define LIFETM_LEN 2
 #define ACCURACY 300
-//#define SEND_SETS_DELAY 30
-//#define WAIT_RESPONSE_DELAY 70
 #define SEND_SETS_DELAY 5
 #define WAIT_RESPONSE_DELAY 15
 #define MK_COUNT 6
+#define BUFFER_SIZE 6
 
 
 const uint8_t end1 = B11111110;
@@ -18,19 +17,26 @@ int stat[10][20];
 String sets[10];
 String butt[10];
 String rebs[10];
+int buffer_sizes[MK_COUNT+1];
+boolean alive[MK_COUNT+1];
+String buffer[MK_COUNT+1][BUFFER_SIZE];
 
 int looper = 0;
 long int lifetm;
 
 void setup(){
-    pinMode(13, OUTPUT);
+  pinMode(13, OUTPUT);
   lifeled = true; 
+  for(int i=0;i<=MK_COUNT;i++){
+	buffer_sizes[i] = 0;
+	alive[i] = 0;
+  }
   pinMode(2, OUTPUT);  
   pinMode(19, INPUT);  
   digitalWrite(2, LOW);
-  Serial.begin(115200);
+  Serial.begin(250000);
   Serial1.begin(115200);
-  Serial3.begin(115200);
+//  Serial3.begin(115200);
 }
 
 //-1 не изменилось 0-не прочиталось, номер изменившегося 02/0000111100/212/1111/30/29/1111/226/222/ 
@@ -57,27 +63,13 @@ int requestStatus(int sn)
       break;
     }
   }
-  //delay(5);
-  //while (Serial1.available()) 
-  //{
-    //Serial.println(String(looper)+"->");
-    //Serial1.read();
-  //}
-  //Serial.println(String(looper)+"->"+String(statsize));
-  //Serial.write(buf, 2);
-  //delay(500);
-//Serial.write(stats, statsize);
-
   if (statsize == 12) 
   {
-    //Serial.write(0-(stats[0]+stats[1]+stats[2]+stats[3]+stats[4]+stats[5]+stats[6]+stats[7]+stats[8]+stats[9]));
-    //Serial.write(stats[10]);
     if (stats[0]==sn)
     if ((uint8_t)(0-(stats[0]+stats[1]+stats[2]+stats[3]+stats[4]+stats[5]+stats[6]+stats[7]+stats[8])) == (uint8_t)stats[9])
     {  
      
       boolean changed = false;
-      //Serial.write(stats, 11);
       String str = "";
       if (stats[1]&B10000000) str += '1'; else str += '0';
       if (stats[1]&B01000000) str += '1'; else str += '0';
@@ -115,12 +107,6 @@ int requestStatus(int sn)
       if (stats[8]&B00010000) str += '1'; else str += '0';
       if (butt[sn] != str) changed = true;
       butt[sn] = str;
-      //stat[sn][3] = 0;
-      //stat[sn][4] = 0;
-      //stat[sn][3] |= stats[9] << 8;
-      //stat[sn][3] |= stats[10];
-      //stat[sn][4] |= stats[11] << 8;
-      //stat[sn][4] |= stats[12];
       if (changed == false) return -1;
       return sn;
     }
@@ -128,13 +114,33 @@ int requestStatus(int sn)
     //Serial.println(String(looper)+"->"+String(statsize));
   return 0;
 }
-
-
+//1 - выполнено, 0- не выполнено
+int checkSet(int sn, String sen){
+  sen.replace('\n', '2');
+  while(sen.length()<15) sen+='2';
+  if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
+  ((sen[1]=='2')||(sen[1]==sets[sn][1]))&&
+  ((sen[2]=='2')||(sen[2]==sets[sn][2]))&&
+  ((sen[3]=='2')||(sen[3]==sets[sn][3]))&&
+  ((sen[4]=='2')||(sen[4]==sets[sn][4]))&&
+  ((sen[5]=='2')||(sen[5]==sets[sn][5]))&&
+  ((sen[6]=='2')||(sen[6]==sets[sn][6]))&&
+  ((sen[7]=='2')||(sen[7]==sets[sn][7]))&&
+  ((sen[8]=='2')||(sen[8]==sets[sn][8]))&&
+  ((sen[9]=='2')||(sen[9]==sets[sn][9]))&&
+  ((sen[10]=='2')||(sen[10]==sets[sn][10]))&&
+  ((sen[11]=='2')||(sen[11]==sets[sn][11]))&&
+  ((sen[12]=='2')||(sen[12]==sets[sn][12]))&&
+  ((sen[13]=='2')||(sen[13]==sets[sn][13]))&&
+  ((sen[14]=='2')||(sen[14]==sets[sn][14])))
+    return 1;
+  return 0;
+}
 //1 - отправил, 0- не отправил
 int sendSet(int sn, String sen, int del)
 {
+  sen.replace('\n', '2');
   while(sen.length()<15) sen+='2';
-  //if (sen.length()>=16) {
   if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
   ((sen[1]=='2')||(sen[1]==sets[sn][1]))&&
   ((sen[2]=='2')||(sen[2]==sets[sn][2]))&&
@@ -196,17 +202,36 @@ int sendSet(int sn, String sen, int del)
     Serial1.flush();
     digitalWrite(2, LOW);
     digitalWrite(19, LOW);
-    
-    //delay(del);
     return 1;
   }
+}
+
+
+void deleteTask(int sn){
+	if(buffer_sizes[sn]>1) 
+		for(int i=0;i<buffer_sizes[sn]-1;i++)
+			buffer[sn][i]=buffer[sn][i+1];
+	if(buffer_sizes[sn]>0) 
+		buffer_sizes[sn]--;
 }
 
  
 void loop() 
 {
-  //lifetm++;
   looper++;
+  
+  
+  while (Serial.available()) 
+  {
+    // читаем по байтно из порта
+    char inChar = (char)Serial.read(); 
+    inputString += inChar;
+    // Получили знак конца строки - идем обрабатывать
+    if (inChar == '\n') {
+      stringComplete = true;
+    } 
+  }
+  
   
   if (stringComplete) 
   {
@@ -218,53 +243,55 @@ void loop()
     else
     if (inputString.substring(2,5)=="set")
     {
-      int str = sendSet(inputString.substring(0,2).toInt(), inputString.substring(5,inputString.length()), SEND_SETS_DELAY);
-      //Serial.print(str);
-      //Serial3.print(str);
+      int num = inputString.substring(0,2).toInt();
+      buffer[num][buffer_sizes[num]] = inputString.substring(5,inputString.length());
+      buffer_sizes[num]++;
+      
+	  if (buffer_sizes[num]>BUFFER_SIZE)
+		buffer_sizes[num] = 0;
+    //  int str = sendSet(inputString.substring(0,2).toInt(), inputString.substring(5,inputString.length()), SEND_SETS_DELAY);
     }
     inputString = "";
+    
     stringComplete = false;
   }
-  if (stringComplete3) 
+//  if (stringComplete3) 
+//  {
+//    if (inputString3.substring(0,3)=="clr")
+//    {
+//      for(int i=0; i<10; i++)
+//        butt[i]="----";
+//    }
+//    else
+//    if (inputString3.substring(2,5)=="set")
+//    {
+//      int str = sendSet(inputString3.substring(0,2).toInt(), inputString3.substring(5,inputString3.length()), SEND_SETS_DELAY);
+//    }
+//    inputString3 = "";
+//    stringComplete3 = false;
+//  }
+  if ((buffer_sizes[looper]>0)&&(checkSet(looper, buffer[looper][0])==1)&&(alive[looper]==true))
   {
-    if (inputString3.substring(0,3)=="clr")
-    {
-      for(int i=0; i<10; i++)
-        butt[i]="----";
-    }
-    else
-    if (inputString3.substring(2,5)=="set")
-    {
-      int str = sendSet(inputString3.substring(0,2).toInt(), inputString3.substring(5,inputString3.length()), SEND_SETS_DELAY);
-      //Serial.print(str);
-      //Serial3.print(str);
-    }
-    inputString3 = "";
-    stringComplete3 = false;
+      deleteTask(looper);
   }
-  //for(int i=1;i<=6;i++)
+  if ((buffer_sizes[looper]>0)&&(alive[looper]==true))
   {
-    
-     // delay(1000);
-  //Serial.write(stats, statsize);
-    //sendSet(4, "1111222211", SEND_SETS_DELAY);
- 
+    //Serial.println( alive[looper]);
+    int str = sendSet(looper, buffer[looper][0], SEND_SETS_DELAY);
+  }
+  {
     int sn=requestStatus(looper);
-    //if ((looper==4)&&(sn==0)) Serial.println(String(sn));
-    //Serial.println(String(sn));
     if (sn==looper)
-    {  
+    { 
       String str = String(sn)+'/'+sets[sn]+'/'+stat[sn][0]+'/'+rebs[sn]+'/'+stat[sn][1]+'/'+stat[sn][2]+'/'+butt[sn]+'/';
-      //Serial.flush();
-      //delay(2);
       Serial.println(str);
       Serial.flush();
-      Serial3.println(str);
-      Serial3.flush();
+//      Serial3.println(str);
+//      Serial3.flush();
     }
+    if (sn==0) alive[looper] = false;
+    else alive[looper] = true; 
   }
-  //if (lifetm == LIFETM_LEN)
-  //  lifetm = 0;
   if (looper == MK_COUNT)
   {
     looper = 0;
@@ -281,26 +308,26 @@ void loop()
   }
 }
 
-void serialEvent() {
-  while (Serial.available()) {
-    // читаем по байтно из порта
-    char inChar = (char)Serial.read(); 
-    inputString += inChar;
-    // Получили знак конца строки - идем обрабатывать
-    if (inChar == '\n') {
-      stringComplete = true;
-    } 
-  }
-}
+//void serialEvent() {
+//  while (Serial.available()) {
+//    // читаем по байтно из порта
+//    char inChar = (char)Serial.read(); 
+//    inputString += inChar;
+//    // Получили знак конца строки - идем обрабатывать
+//    if (inChar == '\n') {
+//      stringComplete = true;
+//    } 
+//  }
+//}
 
-void serialEvent3() {
-  while (Serial3.available()) {
-    // читаем по байтно из порта
-    char inChar = (char)Serial3.read(); 
-    inputString3 += inChar;
-    // Получили знак конца строки - идем обрабатывать
-    if (inChar == '\n') {
-      stringComplete3 = true;
-    } 
-  }
-}
+//void serialEvent3() {
+//  while (Serial3.available()) {
+//    // читаем по байтно из порта
+//    char inChar = (char)Serial3.read(); 
+//    inputString3 += inChar;
+//    // Получили знак конца строки - идем обрабатывать
+//    if (inChar == '\n') {
+//      stringComplete3 = true;
+//    } 
+//  }
+//}
