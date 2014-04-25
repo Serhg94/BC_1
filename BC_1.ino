@@ -116,8 +116,6 @@ int requestStatus(int sn)
 }
 //1 - выполнено, 0- не выполнено
 int checkSet(int sn, String sen){
-  sen.replace('\n', '2');
-  while(sen.length()<15) sen+='2';
   if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
   ((sen[1]=='2')||(sen[1]==sets[sn][1]))&&
   ((sen[2]=='2')||(sen[2]==sets[sn][2]))&&
@@ -139,8 +137,6 @@ int checkSet(int sn, String sen){
 //1 - отправил, 0- не отправил
 int sendSet(int sn, String sen, int del)
 {
-  sen.replace('\n', '2');
-  while(sen.length()<15) sen+='2';
   if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
   ((sen[1]=='2')||(sen[1]==sets[sn][1]))&&
   ((sen[2]=='2')||(sen[2]==sets[sn][2]))&&
@@ -244,11 +240,18 @@ void loop()
     if (inputString.substring(2,5)=="set")
     {
       int num = inputString.substring(0,2).toInt();
-      buffer[num][buffer_sizes[num]] = inputString.substring(5,inputString.length());
-      buffer_sizes[num]++;
-      
-	  if (buffer_sizes[num]>BUFFER_SIZE)
-		buffer_sizes[num] = 0;
+      boolean check = true;
+      String sen = inputString.substring(5,inputString.length());
+      sen.replace('\n', '2');
+      while(sen.length()<15) sen+='2';
+      for(int i=0; i<sen.length(); i++)
+        if ((sen[i]!='1')&&(sen[i]!='0')&&(sen[i]!='2')) check = false;
+      if (check){
+        buffer[num][buffer_sizes[num]] = sen;
+        buffer_sizes[num]++;
+        if (buffer_sizes[num]>BUFFER_SIZE)
+	  buffer_sizes[num] = 0;
+      }
     //  int str = sendSet(inputString.substring(0,2).toInt(), inputString.substring(5,inputString.length()), SEND_SETS_DELAY);
     }
     inputString = "";
