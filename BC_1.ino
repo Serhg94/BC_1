@@ -114,6 +114,13 @@ int requestStatus(int sn)
     //Serial.println(String(looper)+"->"+String(statsize));
   return 0;
 }
+char invers(char c){
+  if (c=='1')
+    return '0';
+  return '1';
+}
+
+
 //1 - выполнено, 0- не выполнено
 int checkSet(int sn, String sen){
   if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
@@ -137,26 +144,6 @@ int checkSet(int sn, String sen){
 //1 - отправил, 0- не отправил
 int sendSet(int sn, String sen, int del)
 {
-  if (((sen[0]=='2')||(sen[0]==sets[sn][0]))&&
-  ((sen[1]=='2')||(sen[1]==sets[sn][1]))&&
-  ((sen[2]=='2')||(sen[2]==sets[sn][2]))&&
-  ((sen[3]=='2')||(sen[3]==sets[sn][3]))&&
-  ((sen[4]=='2')||(sen[4]==sets[sn][4]))&&
-  ((sen[5]=='2')||(sen[5]==sets[sn][5]))&&
-  ((sen[6]=='2')||(sen[6]==sets[sn][6]))&&
-  ((sen[7]=='2')||(sen[7]==sets[sn][7]))&&
-  ((sen[8]=='2')||(sen[8]==sets[sn][8]))&&
-  ((sen[9]=='2')||(sen[9]==sets[sn][9]))&&
-  ((sen[10]=='2')||(sen[10]==sets[sn][10]))&&
-  ((sen[11]=='2')||(sen[11]==sets[sn][11]))&&
-  ((sen[12]=='2')||(sen[12]==sets[sn][12]))&&
-  ((sen[13]=='2')||(sen[13]==sets[sn][13]))&&
-  ((sen[14]=='2')||(sen[14]==sets[sn][14])))
-  {
-    return 0;
-  }
-  else
-  {
     uint8_t buf[6] = {B00000000, B00000000, B00000000, B00000000, end1, end2};
     buf[0] = (uint8_t)sn;
     if ((sen[0] == '2')&&(sets[sn][0]=='1')) buf[1] |= B10000000; 
@@ -199,7 +186,6 @@ int sendSet(int sn, String sen, int del)
     digitalWrite(2, LOW);
     digitalWrite(19, LOW);
     return 1;
-  }
 }
 
 
@@ -244,8 +230,10 @@ void loop()
       String sen = inputString.substring(5,inputString.length());
       sen.replace('\n', '2');
       while(sen.length()<15) sen+='2';
-      for(int i=0; i<sen.length(); i++)
-        if ((sen[i]!='1')&&(sen[i]!='0')&&(sen[i]!='2')) check = false;
+      for(int i=0; i<sen.length(); i++){
+        if ((sen[i]!='1')&&(sen[i]!='0')&&(sen[i]!='2')&&(sen[i]!='3')) check = false;
+        if (sen[i]=='3') sen[i]=invers(sets[num][i]);
+      }
       if (check){
         buffer[num][buffer_sizes[num]] = sen;
         buffer_sizes[num]++;
